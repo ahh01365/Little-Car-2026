@@ -9,7 +9,7 @@ namespace DRV::UART
 {
     enum class UartId : uint8_t
     {
-        Debug = 0,
+        Laser = 0,
         Count
     };
 }

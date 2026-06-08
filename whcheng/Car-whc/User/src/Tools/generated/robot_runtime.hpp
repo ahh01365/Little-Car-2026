@@ -10,6 +10,8 @@
 #include "drv_pwm.hpp"
 #include "encoder.hpp"
 #include "310Motor.hpp"
+#include "fanMotor.hpp"
+#include "laser.hpp"
 #include "drv_gpio.hpp"
 #include "button.hpp"
 #include "led.hpp"
@@ -20,7 +22,7 @@
 #include "i2c.h"
 #include "robot_config.hpp"
 
-void Debug_OnUartRx(DRV::UART::UartId id, const DRV::UART::UartData &data);
+void Laser_OnUartRx(DRV::UART::UartId id, const DRV::UART::UartData &data);
 
 namespace RobotRuntime
 {
@@ -48,168 +50,35 @@ namespace RobotRuntime
         return buttons;
     }
 
-    inline DRV::GPIO::HalGpio (&LedPins())[6]
-    {
-        static DRV::GPIO::HalGpio pins[6] =
-        {
-            DRV::GPIO::HalGpio(GPIOG, GPIO_PIN_1),
-            DRV::GPIO::HalGpio(GPIOE, GPIO_PIN_7),
-            DRV::GPIO::HalGpio(GPIOG, GPIO_PIN_2),
-            DRV::GPIO::HalGpio(GPIOE, GPIO_PIN_2),
-            DRV::GPIO::HalGpio(GPIOE, GPIO_PIN_3),
-            DRV::GPIO::HalGpio(GPIOE, GPIO_PIN_4),
-        };
-
-        return pins;
-    }
-
-    inline BSP::LED::Led (&Leds())[6]
-    {
-        static BSP::LED::Led leds[6] =
-        {
-            BSP::LED::Led(LedPins()[0], false),
-            BSP::LED::Led(LedPins()[1], false),
-            BSP::LED::Led(LedPins()[2], false),
-            BSP::LED::Led(LedPins()[3], false),
-            BSP::LED::Led(LedPins()[4], false),
-            BSP::LED::Led(LedPins()[5], false),
-        };
-
-        return leds;
-    }
-
-    inline DRV::GPIO::HalGpio &BuzzerPin()
-    {
-        static DRV::GPIO::HalGpio pin(GPIOG, GPIO_PIN_12);
-        return pin;
-    }
-
-    inline BSP::Buzzer::Buzzer &Buzzer()
-    {
-        static BSP::Buzzer::Buzzer buzzer(BuzzerPin(), false);
-        return buzzer;
-    }
-
     inline BSP::OLED::Oled &Oled()
     {
         static BSP::OLED::Oled oled(hi2c1, RobotConfig::kOled.address);
         return oled;
     }
 
-    inline ALG::PID::PID (&ChassisSpeedPids())[4]
+    inline ALG::PID::PID &HighDistancePidPid()
     {
-        static ALG::PID::PID pids[4] =
-        {
-            ALG::PID::PID(RobotConfig::kPidChassisLeftFrontSpeed),
-            ALG::PID::PID(RobotConfig::kPidChassisRightFrontSpeed),
-            ALG::PID::PID(RobotConfig::kPidChassisLeftBackSpeed),
-            ALG::PID::PID(RobotConfig::kPidChassisRightBackSpeed),
-        };
-
-        return pids;
+        static ALG::PID::PID pid(RobotConfig::kPidHighDistancePid);
+        return pid;
     }
 
-    inline ALG::Filter::LowPassFilter (&ChassisTargetLowPassFilters())[2]
+    inline ALG::PID::PID &HighVelocityPidPid()
     {
-        static ALG::Filter::LowPassFilter filters[2] =
-        {
-            ALG::Filter::LowPassFilter(RobotConfig::kFilterChassisTargetLowPass),
-            ALG::Filter::LowPassFilter(RobotConfig::kFilterChassisRotationLowPass),
-        };
-
-        return filters;
+        static ALG::PID::PID pid(RobotConfig::kPidHighVelocityPid);
+        return pid;
     }
 
-    inline ALG::Filter::TDFilter (&ChassisTargetTrackingTdFilters())[2]
+    inline ALG::Filter::TDFilter &HighDistanceTdTdFilter()
     {
-        static ALG::Filter::TDFilter filters[2] =
-        {
-            ALG::Filter::TDFilter(RobotConfig::kFilterChassisTargetForwardTd),
-            ALG::Filter::TDFilter(RobotConfig::kFilterChassisTargetRotationTd),
-        };
-
-        return filters;
-    }
-
-    inline ALG::ChassisIK::Diff_IK &ChassisIK()
-    {
-        static ALG::ChassisIK::Diff_IK ik(RobotConfig::kChassisIKConfig);
-        return ik;
-    }
-
-    inline BSP::ENCODER::HALEncoder (&ChassisEncoderHal())[4]
-    {
-        static BSP::ENCODER::HALEncoder encoders[4] =
-        {
-            BSP::ENCODER::HALEncoder(&htim4),
-            BSP::ENCODER::HALEncoder(&htim5),
-            BSP::ENCODER::HALEncoder(&htim2),
-            BSP::ENCODER::HALEncoder(&htim3),
-        };
-
-        return encoders;
-    }
-
-    inline BSP::ENCODER::EncoderData (&ChassisEncoderData())[4]
-    {
-        static BSP::ENCODER::EncoderData data[4] =
-        {
-            BSP::ENCODER::EncoderData(
-                ChassisEncoderHal()[0],
-                RobotConfig::kEncoders[0].cpr,
-                RobotConfig::kPidChassisLeftFrontSpeed.T
-            ),
-            BSP::ENCODER::EncoderData(
-                ChassisEncoderHal()[1],
-                RobotConfig::kEncoders[2].cpr,
-                RobotConfig::kPidChassisRightFrontSpeed.T
-            ),
-            BSP::ENCODER::EncoderData(
-                ChassisEncoderHal()[2],
-                RobotConfig::kEncoders[1].cpr,
-                RobotConfig::kPidChassisLeftBackSpeed.T
-            ),
-            BSP::ENCODER::EncoderData(
-                ChassisEncoderHal()[3],
-                RobotConfig::kEncoders[3].cpr,
-                RobotConfig::kPidChassisRightBackSpeed.T
-            ),
-        };
-
-        return data;
-    }
-
-    inline DRV::PWM::HalPwmChannel (&ChassisPwmA())[4]
-    {
-        static DRV::PWM::HalPwmChannel pwms[4] =
-        {
-            DRV::PWM::HalPwmChannel(&htim8, TIM_CHANNEL_2),
-            DRV::PWM::HalPwmChannel(&htim1, TIM_CHANNEL_2),
-            DRV::PWM::HalPwmChannel(&htim8, TIM_CHANNEL_4),
-            DRV::PWM::HalPwmChannel(&htim1, TIM_CHANNEL_4),
-        };
-
-        return pwms;
-    }
-
-    inline DRV::PWM::HalPwmChannel (&ChassisPwmB())[4]
-    {
-        static DRV::PWM::HalPwmChannel pwms[4] =
-        {
-            DRV::PWM::HalPwmChannel(&htim8, TIM_CHANNEL_1),
-            DRV::PWM::HalPwmChannel(&htim1, TIM_CHANNEL_1),
-            DRV::PWM::HalPwmChannel(&htim8, TIM_CHANNEL_3),
-            DRV::PWM::HalPwmChannel(&htim1, TIM_CHANNEL_3),
-        };
-
-        return pwms;
+        static ALG::Filter::TDFilter filter(RobotConfig::kFilterHighDistanceTd);
+        return filter;
     }
 
     inline bool UartTx(DRV::UART::UartId id, const uint8_t *data, uint16_t len)
     {
         switch (id)
         {
-            case DRV::UART::UartId::Debug:
+            case DRV::UART::UartId::Laser:
                 return HAL_UART_Transmit_DMA(&huart1, data, len) == HAL_OK;
             default:
                 return false;
@@ -220,16 +89,16 @@ namespace RobotRuntime
     {
         switch (id)
         {
-            case DRV::UART::UartId::Debug:
+            case DRV::UART::UartId::Laser:
                 return HAL_UARTEx_ReceiveToIdle_DMA(&huart1, buffer, len) == HAL_OK;
             default:
                 return false;
         }
     }
 
-    inline uint8_t (&DebugRxBuffer())[44]
+    inline uint8_t (&LaserRxBuffer())[20]
     {
-        static uint8_t buffer[44] = {};
+        static uint8_t buffer[20] = {};
         return buffer;
     }
 
@@ -239,8 +108,8 @@ namespace RobotRuntime
         uart.Init();
         uart.RegisterTxFunction(UartTx);
         uart.RegisterRxFunction(UartRx);
-        uart.RegisterRxCallback(DRV::UART::UartId::Debug, Debug_OnUartRx);
-        uart.Receive(DRV::UART::UartId::Debug, DebugRxBuffer(), sizeof(DebugRxBuffer()));
+        uart.RegisterRxCallback(DRV::UART::UartId::Laser, Laser_OnUartRx);
+        uart.Receive(DRV::UART::UartId::Laser, LaserRxBuffer(), sizeof(LaserRxBuffer()));
     }
 
     inline void OnUartRxEvent(UART_HandleTypeDef *huart, uint16_t size)
@@ -248,53 +117,38 @@ namespace RobotRuntime
         auto &manager = DRV::UART::UartManager::Instance();
         if (huart == &huart1)
         {
-            manager.Callback(DRV::UART::UartId::Debug, DebugRxBuffer(), size);
-            manager.Receive(DRV::UART::UartId::Debug, DebugRxBuffer(), sizeof(DebugRxBuffer()));
+            manager.Callback(DRV::UART::UartId::Laser, LaserRxBuffer(), size);
+            manager.Receive(DRV::UART::UartId::Laser, LaserRxBuffer(), sizeof(LaserRxBuffer()));
             return;
         }
     }
 
-    inline BSP::Motor::_310::MotorConfig (&ChassisMotorConfigs())[4]
+    inline DRV::PWM::HalPwmChannel &BlowerFanPwm()
     {
-        static BSP::Motor::_310::MotorConfig configs[4] =
-        {
-            {
-                BSP::Motor::_310::MotorId::LeftForward,
-                &ChassisPwmA()[0],
-                &ChassisPwmB()[0],
-                &ChassisEncoderData()[0],
-                BSP::Motor::_310::Parameters(RobotConfig::kMotors[0].reduction_ratio)
-            },
-            {
-                BSP::Motor::_310::MotorId::RightForward,
-                &ChassisPwmA()[1],
-                &ChassisPwmB()[1],
-                &ChassisEncoderData()[1],
-                BSP::Motor::_310::Parameters(RobotConfig::kMotors[1].reduction_ratio)
-            },
-            {
-                BSP::Motor::_310::MotorId::LeftBackward,
-                &ChassisPwmA()[2],
-                &ChassisPwmB()[2],
-                &ChassisEncoderData()[2],
-                BSP::Motor::_310::Parameters(RobotConfig::kMotors[2].reduction_ratio)
-            },
-            {
-                BSP::Motor::_310::MotorId::RightBackward,
-                &ChassisPwmA()[3],
-                &ChassisPwmB()[3],
-                &ChassisEncoderData()[3],
-                BSP::Motor::_310::Parameters(RobotConfig::kMotors[3].reduction_ratio)
-            },
-        };
-
-        return configs;
+        static DRV::PWM::HalPwmChannel pwm(&htim1, TIM_CHANNEL_1);
+        return pwm;
     }
 
-    inline BSP::Motor::_310::Motor310<4> &ChassisMotors()
+    inline BSP::Motor::FanMotorConfig &BlowerFanMotorConfig()
     {
-        static BSP::Motor::_310::Motor310<4> motors(ChassisMotorConfigs());
-        return motors;
+        static BSP::Motor::FanMotorConfig config = {
+            &BlowerFanPwm(),
+            RobotConfig::kFans[0].startup_duty,
+            RobotConfig::kFans[0].min_duty
+        };
+        return config;
+    }
+
+    inline BSP::Motor::FanMotor &BlowerFan()
+    {
+        static BSP::Motor::FanMotor fan(BlowerFanMotorConfig());
+        return fan;
+    }
+
+    inline BSP::Laser::Laser &Laser()
+    {
+        static BSP::Laser::Laser laser;
+        return laser;
     }
 
 }

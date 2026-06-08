@@ -9,6 +9,7 @@
 #include "pid.hpp"
 #include "filter.hpp"
 #include "feedforward.hpp"
+#include "APP/Fsm/ChassisFSM.hpp"
 #include "observer.hpp"
 
 namespace RobotConfig
@@ -17,22 +18,12 @@ namespace RobotConfig
     static constexpr const char *kRobotTarget = "default_car";
     static constexpr const char *kChassisType = "differential_drive";
 
-    static constexpr ALG::ChassisIK::ChassisIKConfig kChassisIKConfig = {0.022f, 0.065f};
+    static constexpr ALG::PID::PidConfig kPidHighDistancePid = {0.0f, 0.0f, 0.0f, 1000.0f, 500.0f, 100.0f, 50.0f, 0.001f};
+    static constexpr ALG::PID::PidConfig kPidHighVelocityPid = {0.0f, 0.0f, 0.0f, 1000.0f, 500.0f, 100.0f, 50.0f, 0.001f};
 
-    static constexpr ALG::PID::PidConfig kPidChassisLeftFrontSpeed = {150.0f, 0.0f, 0.0f, 1000.0f, 500.0f, 10.0f, 50.0f, 0.001f};
-    static constexpr ALG::PID::PidConfig kPidChassisRightFrontSpeed = {150.0f, 0.0f, 0.0f, 1000.0f, 1000.0f, 100.0f, 50.0f, 0.001f};
-    static constexpr ALG::PID::PidConfig kPidChassisLeftBackSpeed = {150.0f, 0.0f, 0.0f, 1000.0f, 1000.0f, 100.0f, 50.0f, 0.001f};
-    static constexpr ALG::PID::PidConfig kPidChassisRightBackSpeed = {150.0f, 0.0f, 0.0f, 1000.0f, 1000.0f, 100.0f, 50.0f, 0.001f};
+    static constexpr ALG::Filter::TDFilterConfig kFilterHighDistanceTd = {300.0f, 0.0333f, 0.0f, 0.0f};
 
-    static constexpr ALG::Filter::LowPassFilterConfig kFilterChassisTargetLowPass = {0.2f, 0.0f};
-    static constexpr ALG::Filter::LowPassFilterConfig kFilterChassisRotationLowPass = {0.2f, 0.0f};
-    static constexpr ALG::Filter::TDFilterConfig kFilterChassisTargetForwardTd = {50.0f, 0.001f, 0.0f, 0.0f};
-    static constexpr ALG::Filter::TDFilterConfig kFilterChassisTargetRotationTd = {50.0f, 0.001f, 0.0f, 0.0f};
-
-    static constexpr ALG::Feedforward::AccelerationFeedforwardConfig kFeedforwardChassisForwardAcc = {0.0f, 0.001f, 0.0f};
-    static constexpr ALG::Feedforward::FrictionFeedforwardConfig kFeedforwardChassisRotationFriction = {0.0f};
-
-    static constexpr ALG::Observer::UDEConfig kObserverChassisDisturbanceUde = {0.0f, 1.0f, 0.0f};
+    static constexpr ALG::Feedforward::GravityFeedforwardConfig kFeedforwardGravityForward = {0.0f, 0.0f};
 
     struct PwmChannelConfig
     {
@@ -116,73 +107,21 @@ namespace RobotConfig
         uint8_t height;
     };
 
-    static constexpr MotorConfig kMotors[] =
+    struct FanConfig
     {
-        {
-            "left_front",
-            "M1",
-            0,
-            "left",
-            "front",
-            {"htim8", "TIM_CHANNEL_2", "PC7", false},
-            {"htim8", "TIM_CHANNEL_1", "PC6", false},
-            "left_front_encoder",
-            "chassis_left_front_speed",
-            false,
-            1.0f
-        },
-        {
-            "right_front",
-            "M3",
-            2,
-            "right",
-            "front",
-            {"htim1", "TIM_CHANNEL_2", "PE11", false},
-            {"htim1", "TIM_CHANNEL_1", "PE9", false},
-            "right_front_encoder",
-            "chassis_right_front_speed",
-            false,
-            1.0f
-        },
-        {
-            "left_back",
-            "M2",
-            1,
-            "left",
-            "back",
-            {"htim8", "TIM_CHANNEL_4", "PC9", false},
-            {"htim8", "TIM_CHANNEL_3", "PC8", false},
-            "left_back_encoder",
-            "chassis_left_back_speed",
-            false,
-            1.0f
-        },
-        {
-            "right_back",
-            "M4",
-            3,
-            "right",
-            "back",
-            {"htim1", "TIM_CHANNEL_4", "PE14", false},
-            {"htim1", "TIM_CHANNEL_3", "PE13", false},
-            "right_back_encoder",
-            "chassis_right_back_speed",
-            false,
-            1.0f
-        },
+        const char *name;
+        PwmChannelConfig pwm;
+        uint16_t startup_duty;
+        uint16_t min_duty;
     };
 
-    static constexpr EncoderConfig kEncoders[] =
-    {
-        {"left_front_encoder", "M1", "htim4", 1040u},
-        {"right_front_encoder", "M3", "htim5", 1040u},
-        {"left_back_encoder", "M2", "htim2", 1040u},
-        {"right_back_encoder", "M4", "htim3", 1040u},
-    };
+    static constexpr uint8_t kMotorCount = 0;
+
+    static constexpr uint8_t kEncoderCount = 0;
 
     static constexpr UartConfig kUarts[] =
     {
-        {"debug", "Debug", "huart1", 115200u, "dma", "idle_dma", 44u, "Debug_OnUartRx"},
+        {"laser", "Laser", "huart1", 115200u, "dma", "idle_dma", 20u, "Laser_OnUartRx"},
     };
 
     static constexpr ButtonConfig kButtons[] =
@@ -192,33 +131,29 @@ namespace RobotConfig
         {"key3", "PG5", "exti", "rising", "none", "EXTI9_5_IRQn", true},
     };
 
-    static constexpr LedConfig kLeds[] =
-    {
-        {"lrgb_r", "PG1", "output", "none", "low", false},
-        {"lrgb_g", "PE7", "output", "none", "low", false},
-        {"lrgb_b", "PG2", "output", "none", "low", false},
-        {"rrgb_r", "PE2", "output", "none", "low", false},
-        {"rrgb_g", "PE3", "output", "none", "low", false},
-        {"rrgb_b", "PE4", "output", "none", "low", false},
-    };
-
-    static constexpr BuzzerConfig kBuzzer =
-    {
-        "PG12", "output", "none", "low", false
-    };
+    static constexpr uint8_t kLedCount = 0;
 
     static constexpr OledConfig kOled =
     {
         "ssd1306_i2c", "hi2c1", 0x3Cu, 128u, 64u
     };
 
-    static constexpr uint8_t kMotorCount = sizeof(kMotors) / sizeof(kMotors[0]);
-    static constexpr uint8_t kEncoderCount = sizeof(kEncoders) / sizeof(kEncoders[0]);
+    static constexpr FanConfig kFans[] =
+    {
+        {
+            "blower",
+            {"htim1", "TIM_CHANNEL_1", "PE9", false},
+            200u,
+            50u
+        },
+    };
+
     static constexpr uint8_t kUartCount = sizeof(kUarts) / sizeof(kUarts[0]);
     static constexpr uint8_t kButtonCount = sizeof(kButtons) / sizeof(kButtons[0]);
-    static constexpr uint8_t kLedCount = sizeof(kLeds) / sizeof(kLeds[0]);
-    static constexpr bool kHasBuzzer = true;
+    static constexpr bool kHasBuzzer = false;
     static constexpr bool kHasOled = true;
+    static constexpr uint8_t kFanCount = sizeof(kFans) / sizeof(kFans[0]);
+    static constexpr bool kHasFan = true;
 }
 
 #endif // !ROBOT_CONFIG_HPP

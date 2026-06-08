@@ -113,7 +113,7 @@ def parse_inline_map(value: str) -> dict:
 
 
 def load_yaml_subset(path: Path) -> dict:
-    raw_lines = path.read_text(encoding="utf-8").splitlines()
+    raw_lines = path.read_text(encoding="utf-8-sig").splitlines()
     lines = []
     for line_no, raw in enumerate(raw_lines, 1):
         stripped = strip_comment(raw).rstrip()
@@ -188,6 +188,13 @@ def as_int(value) -> int:
     if not isinstance(value, int):
         raise ConfigError(f"Expected integer, got {value!r}")
     return value
+
+
+def as_uint32(value) -> int:
+    v = as_int(value)
+    if v < 0:
+        raise ConfigError(f"Expected non-negative integer, got {v}")
+    return v
 
 
 def as_uint(value, path: str) -> int:
@@ -389,51 +396,53 @@ def validate_config(config: dict) -> None:
         raise ConfigError(f"Unsupported chassis_type: {chassis_type}")
 
     control = require(config, "control", "config")
-    chassis_ik = require(control, "chassis_ik", "control")
-    if require(chassis_ik, "type", "control.chassis_ik") != "differential_drive":
-        raise ConfigError("Only differential_drive chassis_ik is supported")
-    ik_config = require(chassis_ik, "config", "control.chassis_ik")
-    require(ik_config, "wheel_radius_m", "control.chassis_ik.config")
-    require(ik_config, "half_track_m", "control.chassis_ik.config")
+    chassis_ik = control.get("chassis_ik", {})
+    if chassis_ik:
+        if require(chassis_ik, "type", "control.chassis_ik") != "differential_drive":
+            raise ConfigError("Only differential_drive chassis_ik is supported")
+        ik_config = require(chassis_ik, "config", "control.chassis_ik")
+        require(ik_config, "wheel_radius_m", "control.chassis_ik.config")
+        require(ik_config, "half_track_m", "control.chassis_ik.config")
 
     pid_map = require(control, "pid", "control")
     filters = get_optional_map(control, "filters", "control")
     feedforwards = get_optional_map(control, "feedforwards", "control")
     observers = get_optional_map(control, "observers", "control")
     hardware = require(config, "hardware", "config")
-    motors = require(hardware, "motors", "hardware")
-    encoders = require(hardware, "encoders", "hardware")
+    motors = hardware.get("motors", {})
+    encoders = hardware.get("encoders", {})
     buttons = get_optional_map(hardware, "buttons", "hardware")
     leds = get_optional_map(hardware, "leds", "hardware")
     buzzer = get_optional_map(hardware, "buzzer", "hardware")
     oled = get_optional_map(hardware, "oled", "hardware")
     messages = config.get("messages", {})
 
-    seen_indexes = set()
-    for name, motor in motors.items():
-        index = as_int(require(motor, "ik_index", f"hardware.motors.{name}"))
-        if index < 0 or index > 3:
-            raise ConfigError(f"hardware.motors.{name}.ik_index must be 0..3")
-        if index in seen_indexes:
-            raise ConfigError(f"Duplicated ik_index: {index}")
-        seen_indexes.add(index)
+    if motors:
+        seen_indexes = set()
+        for name, motor in motors.items():
+            index = as_int(require(motor, "ik_index", f"hardware.motors.{name}"))
+            if index < 0 or index > 3:
+                raise ConfigError(f"hardware.motors.{name}.ik_index must be 0..3")
+            if index in seen_indexes:
+                raise ConfigError(f"Duplicated ik_index: {index}")
+            seen_indexes.add(index)
 
-        pid_name = require(motor, "speed_pid", f"hardware.motors.{name}")
-        if pid_name not in pid_map:
-            raise ConfigError(f"Motor {name} references missing PID {pid_name}")
+            pid_name = require(motor, "speed_pid", f"hardware.motors.{name}")
+            if pid_name not in pid_map:
+                raise ConfigError(f"Motor {name} references missing PID {pid_name}")
 
-        encoder_name = require(motor, "encoder", f"hardware.motors.{name}")
-        if encoder_name not in encoders:
-            raise ConfigError(f"Motor {name} references missing encoder {encoder_name}")
+            encoder_name = require(motor, "encoder", f"hardware.motors.{name}")
+            if encoder_name not in encoders:
+                raise ConfigError(f"Motor {name} references missing encoder {encoder_name}")
 
-        require(motor, "reduction_ratio", f"hardware.motors.{name}")
-        if "array" in motor:
-            as_bool(motor["array"])
-            require(motor, "array_name", f"hardware.motors.{name}")
-            require(motor, "array_index", f"hardware.motors.{name}")
+            require(motor, "reduction_ratio", f"hardware.motors.{name}")
+            if "array" in motor:
+                as_bool(motor["array"])
+                require(motor, "array_name", f"hardware.motors.{name}")
+                require(motor, "array_index", f"hardware.motors.{name}")
 
-    if seen_indexes != {0, 1, 2, 3}:
-        raise ConfigError("Motors must define ik_index 0, 1, 2, and 3")
+        if seen_indexes != {0, 1, 2, 3}:
+            raise ConfigError("Motors must define ik_index 0, 1, 2, and 3")
 
     for name, pid in pid_map.items():
         for field in ("kp", "ki", "kd", "output_limit", "integral_limit", "T"):
@@ -592,6 +601,23 @@ def validate_config(config: dict) -> None:
         if height != 64:
             raise ConfigError("hardware.oled.height must be 64")
 
+    fans = get_optional_map(hardware, "fans", "hardware")
+    for name, fan in fans.items():
+        pwm = require(fan, "pwm", f"hardware.fans.{name}")
+        if not isinstance(pwm, dict):
+            raise ConfigError(f"hardware.fans.{name}.pwm must be a map")
+        require(pwm, "timer", f"hardware.fans.{name}.pwm")
+        require(pwm, "channel", f"hardware.fans.{name}.pwm")
+        require(pwm, "gpio", f"hardware.fans.{name}.pwm")
+        if "startup_duty" in fan:
+            sd = as_int(fan["startup_duty"])
+            if sd < 0 or sd > 1000:
+                raise ConfigError(f"hardware.fans.{name}.startup_duty must be 0..1000")
+        if "min_duty" in fan:
+            md = as_int(fan["min_duty"])
+            if md < 0 or md > 1000:
+                raise ConfigError(f"hardware.fans.{name}.min_duty must be 0..1000")
+
     uart_map = config.get("communication", {}).get("uart", {})
     if not isinstance(uart_map, dict):
         raise ConfigError("communication.uart must be a map")
@@ -638,8 +664,10 @@ def validate_config(config: dict) -> None:
             cpp_symbol(rx_callback)
 
     collect_array_groups(pid_map, "control.pid")
-    collect_array_groups(motors, "hardware.motors")
-    collect_array_groups(encoders, "hardware.encoders")
+    if motors:
+        collect_array_groups(motors, "hardware.motors")
+    if encoders:
+        collect_array_groups(encoders, "hardware.encoders")
 
     for name, message in messages.items():
         fields = require(message, "fields", f"messages.{name}")
@@ -652,6 +680,11 @@ def validate_config(config: dict) -> None:
             raise ConfigError(f"messages.{name}.subscribers must be a list")
         if len(subscribers) > 4:
             raise ConfigError(f"Message {name} has more than 4 subscribers")
+
+
+    fsm_map = get_optional_map(config, "fsm", "fsm")
+    for name, fsm_cfg in fsm_map.items():
+        as_uint32(require(fsm_cfg, "lost_timeout", f"fsm.{name}"))
 
 
 def generate_uart_header(config: dict, source_path: Path) -> str:
@@ -690,18 +723,20 @@ def generate_uart_header(config: dict, source_path: Path) -> str:
 def generate_header(config: dict, source_path: Path) -> str:
     robot = config["robot"]
     control = config["control"]
-    ik_config = control["chassis_ik"]["config"]
+    chassis_ik = control.get("chassis_ik", {})
+    ik_config = chassis_ik.get("config", {}) if chassis_ik else {}
     pid_map = control["pid"]
     filters = get_optional_map(control, "filters", "control")
     feedforwards = get_optional_map(control, "feedforwards", "control")
     observers = get_optional_map(control, "observers", "control")
     hardware = config["hardware"]
-    motors = hardware["motors"]
-    encoders = hardware["encoders"]
+    motors = hardware.get("motors", {})
+    encoders = hardware.get("encoders", {})
     buttons = get_optional_map(hardware, "buttons", "hardware")
     leds = get_optional_map(hardware, "leds", "hardware")
     buzzer = get_optional_map(hardware, "buzzer", "hardware")
     oled = get_optional_map(hardware, "oled", "hardware")
+    fans = get_optional_map(hardware, "fans", "hardware")
     uart_map = config.get("communication", {}).get("uart", {})
     messages = config.get("messages", {})
 
@@ -717,6 +752,7 @@ def generate_header(config: dict, source_path: Path) -> str:
     lines.append('#include "pid.hpp"')
     lines.append('#include "filter.hpp"')
     lines.append('#include "feedforward.hpp"')
+    lines.append('#include "APP/Fsm/ChassisFSM.hpp"')
     lines.append('#include "observer.hpp"')
     lines.append("")
     lines.append("namespace RobotConfig")
@@ -727,11 +763,12 @@ def generate_header(config: dict, source_path: Path) -> str:
         f"    static constexpr const char *kChassisType = {cpp_string(robot['chassis_type'])};"
     )
     lines.append("")
-    lines.append(
-        "    static constexpr ALG::ChassisIK::ChassisIKConfig kChassisIKConfig = "
-        f"{{{cpp_float(ik_config['wheel_radius_m'])}, {cpp_float(ik_config['half_track_m'])}}};"
-    )
-    lines.append("")
+    if chassis_ik:
+        lines.append(
+            "    static constexpr ALG::ChassisIK::ChassisIKConfig kChassisIKConfig = "
+            f"{{{cpp_float(ik_config['wheel_radius_m'])}, {cpp_float(ik_config['half_track_m'])}}};"
+        )
+        lines.append("")
 
     for name, pid in pid_map.items():
         ident = to_identifier(name)
@@ -840,6 +877,18 @@ def generate_header(config: dict, source_path: Path) -> str:
     if observers:
         lines.append("")
 
+    fsm_map = get_optional_map(config, "fsm", "fsm")
+    for name, fsm_cfg in fsm_map.items():
+        ident = to_identifier(name)
+        lines.append(
+            f"    static constexpr APP::Fsm::ChassisFSM::Config kFsm{ident} = "
+            "{"
+            f"{as_uint32(fsm_cfg['lost_timeout'])}"
+            "};"
+        )
+    if fsm_map:
+        lines.append("")
+
     lines.append("    struct PwmChannelConfig")
     lines.append("    {")
     lines.append("        const char *timer;")
@@ -926,54 +975,71 @@ def generate_header(config: dict, source_path: Path) -> str:
     lines.append("        uint8_t height;")
     lines.append("    };")
     lines.append("")
-    lines.append("    static constexpr MotorConfig kMotors[] =")
+    lines.append("    struct FanConfig")
     lines.append("    {")
-    for name, motor in sorted(motors.items(), key=lambda item: wheel_order_key(item[0])):
-        pwm_a = motor.get("pwm_a", {})
-        pwm_b = motor.get("pwm_b", {})
-        lines.append("        {")
-        lines.append(f"            {cpp_string(name)},")
-        lines.append(f"            {cpp_string(motor.get('interface', ''))},")
-        lines.append(f"            {as_int(motor['ik_index'])},")
-        lines.append(f"            {cpp_string(motor.get('side', ''))},")
-        lines.append(f"            {cpp_string(motor.get('position', ''))},")
-        lines.append(
-            "            {"
-            f"{cpp_string(pwm_a.get('timer', ''))}, "
-            f"{cpp_string(pwm_a.get('channel', ''))}, "
-            f"{cpp_string(pwm_a.get('gpio', ''))}, "
-            f"{cpp_bool(pwm_a.get('complementary', False))}"
-            "},"
-        )
-        lines.append(
-            "            {"
-            f"{cpp_string(pwm_b.get('timer', ''))}, "
-            f"{cpp_string(pwm_b.get('channel', ''))}, "
-            f"{cpp_string(pwm_b.get('gpio', ''))}, "
-            f"{cpp_bool(pwm_b.get('complementary', False))}"
-            "},"
-        )
-        lines.append(f"            {cpp_string(motor['encoder'])},")
-        lines.append(f"            {cpp_string(motor['speed_pid'])},")
-        lines.append(f"            {cpp_bool(motor.get('reverse', False))},")
-        lines.append(f"            {cpp_float(motor['reduction_ratio'])}")
-        lines.append("        },")
+    lines.append("        const char *name;")
+    lines.append("        PwmChannelConfig pwm;")
+    lines.append("        uint16_t startup_duty;")
+    lines.append("        uint16_t min_duty;")
     lines.append("    };")
     lines.append("")
 
-    lines.append("    static constexpr EncoderConfig kEncoders[] =")
-    lines.append("    {")
-    for name, encoder in sorted(encoders.items(), key=lambda item: wheel_order_key(item[0])):
-        lines.append(
-            "        {"
-            f"{cpp_string(name)}, "
-            f"{cpp_string(encoder.get('interface', ''))}, "
-            f"{cpp_string(encoder.get('timer', ''))}, "
-            f"{as_int(encoder.get('cpr', 0))}u"
-            "},"
-        )
-    lines.append("    };")
-    lines.append("")
+    if motors:
+        lines.append("    static constexpr MotorConfig kMotors[] =")
+        lines.append("    {")
+        for name, motor in sorted(motors.items(), key=lambda item: wheel_order_key(item[0])):
+            pwm_a = motor.get("pwm_a", {})
+            pwm_b = motor.get("pwm_b", {})
+            lines.append("        {")
+            lines.append(f"            {cpp_string(name)},")
+            lines.append(f"            {cpp_string(motor.get('interface', ''))},")
+            lines.append(f"            {as_int(motor['ik_index'])},")
+            lines.append(f"            {cpp_string(motor.get('side', ''))},")
+            lines.append(f"            {cpp_string(motor.get('position', ''))},")
+            lines.append(
+                "            {"
+                f"{cpp_string(pwm_a.get('timer', ''))}, "
+                f"{cpp_string(pwm_a.get('channel', ''))}, "
+                f"{cpp_string(pwm_a.get('gpio', ''))}, "
+                f"{cpp_bool(pwm_a.get('complementary', False))}"
+                "},"
+            )
+            lines.append(
+                "            {"
+                f"{cpp_string(pwm_b.get('timer', ''))}, "
+                f"{cpp_string(pwm_b.get('channel', ''))}, "
+                f"{cpp_string(pwm_b.get('gpio', ''))}, "
+                f"{cpp_bool(pwm_b.get('complementary', False))}"
+                "},"
+            )
+            lines.append(f"            {cpp_string(motor['encoder'])},")
+            lines.append(f"            {cpp_string(motor['speed_pid'])},")
+            lines.append(f"            {cpp_bool(motor.get('reverse', False))},")
+            lines.append(f"            {cpp_float(motor['reduction_ratio'])}")
+            lines.append("        },")
+        lines.append("    };")
+        lines.append("")
+    else:
+        lines.append("    static constexpr uint8_t kMotorCount = 0;")
+        lines.append("")
+
+    if encoders:
+        lines.append("    static constexpr EncoderConfig kEncoders[] =")
+        lines.append("    {")
+        for name, encoder in sorted(encoders.items(), key=lambda item: wheel_order_key(item[0])):
+            lines.append(
+                "        {"
+                f"{cpp_string(name)}, "
+                f"{cpp_string(encoder.get('interface', ''))}, "
+                f"{cpp_string(encoder.get('timer', ''))}, "
+                f"{as_int(encoder.get('cpr', 0))}u"
+                "},"
+            )
+        lines.append("    };")
+        lines.append("")
+    else:
+        lines.append("    static constexpr uint8_t kEncoderCount = 0;")
+        lines.append("")
 
     lines.append("    static constexpr UartConfig kUarts[] =")
     lines.append("    {")
@@ -1062,10 +1128,34 @@ def generate_header(config: dict, source_path: Path) -> str:
         lines.append("    };")
         lines.append("")
 
-    lines.append("    static constexpr uint8_t kMotorCount = sizeof(kMotors) / sizeof(kMotors[0]);")
-    lines.append(
-        "    static constexpr uint8_t kEncoderCount = sizeof(kEncoders) / sizeof(kEncoders[0]);"
-    )
+    if fans:
+        lines.append("    static constexpr FanConfig kFans[] =")
+        lines.append("    {")
+        for name, fan in fans.items():
+            pwm = fan.get("pwm", {})
+            lines.append("        {")
+            lines.append(f"            {cpp_string(name)},")
+            lines.append(
+                "            {"
+                f"{cpp_string(pwm.get('timer', ''))}, "
+                f"{cpp_string(pwm.get('channel', ''))}, "
+                f"{cpp_string(pwm.get('gpio', ''))}, "
+                f"{cpp_bool(pwm.get('complementary', False))}"
+                "},"
+            )
+            lines.append(f"            {as_int(fan.get('startup_duty', 200))}u,")
+            lines.append(f"            {as_int(fan.get('min_duty', 50))}u")
+            lines.append("        },")
+        lines.append("    };")
+        lines.append("")
+
+
+    if motors:
+        lines.append("    static constexpr uint8_t kMotorCount = sizeof(kMotors) / sizeof(kMotors[0]);")
+    if encoders:
+        lines.append(
+            "    static constexpr uint8_t kEncoderCount = sizeof(kEncoders) / sizeof(kEncoders[0]);"
+        )
     lines.append("    static constexpr uint8_t kUartCount = sizeof(kUarts) / sizeof(kUarts[0]);")
     if buttons:
         lines.append("    static constexpr uint8_t kButtonCount = sizeof(kButtons) / sizeof(kButtons[0]);")
@@ -1076,6 +1166,13 @@ def generate_header(config: dict, source_path: Path) -> str:
     )
     lines.append(
         f"    static constexpr bool kHasOled = {cpp_bool(bool(oled))};"
+    )
+    if fans:
+        lines.append("    static constexpr uint8_t kFanCount = sizeof(kFans) / sizeof(kFans[0]);")
+    else:
+        lines.append("    static constexpr uint8_t kFanCount = 0;")
+    lines.append(
+        f"    static constexpr bool kHasFan = {cpp_bool(bool(fans))};"
     )
     lines.append("}")
     lines.append("")
@@ -1137,14 +1234,15 @@ def generate_messages_header(config: dict, source_path: Path) -> str:
 def generate_runtime_header(config: dict, source_path: Path) -> str:
     pid_map = config["control"]["pid"]
     filters = get_optional_map(config["control"], "filters", "control")
-    chassis_ik = config["control"]["chassis_ik"]
-    motors = config["hardware"]["motors"]
-    encoders = config["hardware"]["encoders"]
+    chassis_ik = config["control"].get("chassis_ik", {})
+    motors = config["hardware"].get("motors", {})
+    encoders = config["hardware"].get("encoders", {})
     hardware = config["hardware"]
     buttons = get_optional_map(hardware, "buttons", "hardware")
     leds = get_optional_map(hardware, "leds", "hardware")
     buzzer = get_optional_map(hardware, "buzzer", "hardware")
     oled = get_optional_map(hardware, "oled", "hardware")
+    fans = get_optional_map(hardware, "fans", "hardware")
     uart_map = config.get("communication", {}).get("uart", {})
     motors_by_index = sorted(motors.items(), key=lambda item: wheel_order_key(item[0]))
     pid_array_groups = collect_array_groups(pid_map, "control.pid")
@@ -1189,6 +1287,8 @@ def generate_runtime_header(config: dict, source_path: Path) -> str:
     lines.append('#include "drv_pwm.hpp"')
     lines.append('#include "encoder.hpp"')
     lines.append('#include "310Motor.hpp"')
+    lines.append('#include "fanMotor.hpp"')
+    lines.append('#include "laser.hpp"')
     lines.append('#include "drv_gpio.hpp"')
     lines.append('#include "button.hpp"')
     lines.append('#include "led.hpp"')
@@ -1394,13 +1494,25 @@ def generate_runtime_header(config: dict, source_path: Path) -> str:
             lines.append("    }")
             lines.append("")
 
-    if chassis_ik["type"] == "differential_drive":
+    if chassis_ik.get("type") == "differential_drive":
         lines.append("    inline ALG::ChassisIK::Diff_IK &ChassisIK()")
         lines.append("    {")
         lines.append(
             "        static ALG::ChassisIK::Diff_IK ik(RobotConfig::kChassisIKConfig);"
         )
         lines.append("        return ik;")
+        lines.append("    }")
+        lines.append("")
+
+    fsm_map = get_optional_map(config, "fsm", "fsm")
+    for name in fsm_map:
+        ident = to_identifier(name)
+        lines.append(f"    inline APP::Fsm::ChassisFSM &{ident}Fsm()")
+        lines.append("    {")
+        lines.append(
+            f"        static APP::Fsm::ChassisFSM fsm(RobotConfig::kFsm{ident});"
+        )
+        lines.append("        return fsm;")
         lines.append("    }")
         lines.append("")
 
@@ -1629,61 +1741,109 @@ def generate_runtime_header(config: dict, source_path: Path) -> str:
         lines.append("    }")
         lines.append("")
 
-    lines.append("    inline BSP::Motor::_310::MotorConfig (&ChassisMotorConfigs())[4]")
-    lines.append("    {")
-    lines.append("        static BSP::Motor::_310::MotorConfig configs[4] =")
-    lines.append("        {")
-    for index, (name, motor) in enumerate(motors_by_index):
-        ident = to_identifier(name)
-        encoder_ident = to_identifier(motor["encoder"])
-        if "left_front" in name:
-            motor_id = "LeftForward"
-        elif "right_front" in name:
-            motor_id = "RightForward"
-        elif "left_back" in name:
-            motor_id = "LeftBackward"
-        elif "right_back" in name:
-            motor_id = "RightBackward"
-        else:
-            motor_id = "LeftForward"
-        pwm_a_expr = (
-            f"&{motor_array_ident}PwmA()[{index}]"
-            if chassis_motor_array_enabled
-            else f"&{ident}PwmA()"
-        )
-        pwm_b_expr = (
-            f"&{motor_array_ident}PwmB()[{index}]"
-            if chassis_motor_array_enabled
-            else f"&{ident}PwmB()"
-        )
-        encoder_expr = (
-            f"&{encoder_array_ident}EncoderData()[{index}]"
-            if chassis_encoder_array_enabled
-            else f"&{encoder_ident}Data()"
-        )
+    if motors:
+        lines.append("    inline BSP::Motor::_310::MotorConfig (&ChassisMotorConfigs())[4]")
+        lines.append("    {")
+        lines.append("        static BSP::Motor::_310::MotorConfig configs[4] =")
+        lines.append("        {")
+        for index, (name, motor) in enumerate(motors_by_index):
+            ident = to_identifier(name)
+            encoder_ident = to_identifier(motor["encoder"])
+            if "left_front" in name:
+                motor_id = "LeftForward"
+            elif "right_front" in name:
+                motor_id = "RightForward"
+            elif "left_back" in name:
+                motor_id = "LeftBackward"
+            elif "right_back" in name:
+                motor_id = "RightBackward"
+            else:
+                motor_id = "LeftForward"
+            pwm_a_expr = (
+                f"&{motor_array_ident}PwmA()[{index}]"
+                if chassis_motor_array_enabled
+                else f"&{ident}PwmA()"
+            )
+            pwm_b_expr = (
+                f"&{motor_array_ident}PwmB()[{index}]"
+                if chassis_motor_array_enabled
+                else f"&{ident}PwmB()"
+            )
+            encoder_expr = (
+                f"&{encoder_array_ident}EncoderData()[{index}]"
+                if chassis_encoder_array_enabled
+                else f"&{encoder_ident}Data()"
+            )
 
-        lines.append("            {")
-        lines.append(f"                BSP::Motor::_310::MotorId::{motor_id},")
-        lines.append(f"                {pwm_a_expr},")
-        lines.append(f"                {pwm_b_expr},")
-        lines.append(f"                {encoder_expr},")
-        lines.append(
-            "                BSP::Motor::_310::Parameters("
-            f"RobotConfig::kMotors[{index}].reduction_ratio"
-            ")"
-        )
-        lines.append("            },")
-    lines.append("        };")
-    lines.append("")
-    lines.append("        return configs;")
-    lines.append("    }")
-    lines.append("")
-    lines.append("    inline BSP::Motor::_310::Motor310<4> &ChassisMotors()")
-    lines.append("    {")
-    lines.append("        static BSP::Motor::_310::Motor310<4> motors(ChassisMotorConfigs());")
-    lines.append("        return motors;")
-    lines.append("    }")
-    lines.append("")
+            lines.append("            {")
+            lines.append(f"                BSP::Motor::_310::MotorId::{motor_id},")
+            lines.append(f"                {pwm_a_expr},")
+            lines.append(f"                {pwm_b_expr},")
+            lines.append(f"                {encoder_expr},")
+            lines.append(
+                "                BSP::Motor::_310::Parameters("
+                f"RobotConfig::kMotors[{index}].reduction_ratio"
+                ")"
+            )
+            lines.append("            },")
+        lines.append("        };")
+        lines.append("")
+        lines.append("        return configs;")
+        lines.append("    }")
+        lines.append("")
+        lines.append("    inline BSP::Motor::_310::Motor310<4> &ChassisMotors()")
+        lines.append("    {")
+        lines.append("        static BSP::Motor::_310::Motor310<4> motors(ChassisMotorConfigs());")
+        lines.append("        return motors;")
+        lines.append("    }")
+        lines.append("")
+
+    if fans:
+        fan_index = 0
+        for name, fan in fans.items():
+            ident = to_identifier(name)
+            pwm = fan.get("pwm", {})
+            timer = cpp_symbol(pwm.get("timer", ""))
+            channel = cpp_symbol(pwm.get("channel", ""))
+
+            lines.append(f"    inline DRV::PWM::HalPwmChannel &{ident}FanPwm()")
+            lines.append("    {")
+            lines.append(f"        static DRV::PWM::HalPwmChannel pwm(&{timer}, {channel});")
+            lines.append("        return pwm;")
+            lines.append("    }")
+            lines.append("")
+
+            lines.append(f"    inline BSP::Motor::FanMotorConfig &{ident}FanMotorConfig()")
+            lines.append("    {")
+            lines.append(f"        static BSP::Motor::FanMotorConfig config = {{")
+            lines.append(f"            &{ident}FanPwm(),")
+            lines.append(f"            RobotConfig::kFans[{fan_index}].startup_duty,")
+            lines.append(f"            RobotConfig::kFans[{fan_index}].min_duty")
+            lines.append("        };")
+            lines.append("        return config;")
+            lines.append("    }")
+            lines.append("")
+
+            lines.append(f"    inline BSP::Motor::FanMotor &{ident}Fan()")
+            lines.append("    {")
+            lines.append(f"        static BSP::Motor::FanMotor fan({ident}FanMotorConfig());")
+            lines.append("        return fan;")
+            lines.append("    }")
+            lines.append("")
+
+            fan_index += 1
+
+    has_laser_uart = any(
+        uart.get("logical_id") == "Laser"
+        for uart in uart_map.values()
+    )
+    if has_laser_uart:
+        lines.append("    inline BSP::Laser::Laser &Laser()")
+        lines.append("    {")
+        lines.append("        static BSP::Laser::Laser laser;")
+        lines.append("        return laser;")
+        lines.append("    }")
+        lines.append("")
 
     lines.append("}")
     lines.append("")

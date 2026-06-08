@@ -12,30 +12,26 @@ using namespace RobotRuntime;
 
 namespace
 {
-    RobotMessages::ChassisOutput motor_output{};
+    RobotMessages::MotorOutData motor_output{};
 
-    void OnMotorOutput(const RobotMessages::ChassisOutput &msg)
+    void OnMotorOutput(const RobotMessages::MotorOutData &msg)
     {
         motor_output = msg;
     }
 
     void InitMessageSubscribe()
     {
-        RobotMessages::SubscribeChassisOutput(OnMotorOutput);
+        RobotMessages::SubscribeMotorOutData(OnMotorOutput);
     }
 }
 
 void motor_control_logic()
 {
-    auto &motors = ChassisMotors();
 
-    for (uint8_t i = 0; i < RobotConfig::kMotorCount; i++)
-    {
-        const uint8_t motor_id = i + 1u;
-        const int16_t duty = std::clamp(motor_output.motors[i].out, -1000.0f, 1000.0f);
-        motors.SetDuty(motor_id, duty);
-    }  
+
+
 }
+
 extern "C" void HardwareTask(void const *argument)
 {
     InitMessageSubscribe();

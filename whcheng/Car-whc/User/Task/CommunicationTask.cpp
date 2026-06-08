@@ -3,36 +3,22 @@
 #include "cmsis_os.h"
 #include "robot_messages.hpp"
 #include "robot_runtime.hpp"
-
-#include <stdint.h>
 #include <string.h>
 
 namespace
 {
     uint8_t send_str2[6 * sizeof(float) + 4] = {};
 
-    RobotMessages::ChassisTarget chassis_targt{};
-    RobotMessages::MotorFeedback motor_feedback{};
-    RobotMessages::ChassisIKMsg chassisIK_target{};
-    
-    void OnChassisTarget(const RobotMessages::ChassisTarget &msg)
-    {
-        chassis_targt = msg;
-    }
-    void OnMotorFeeedback(const RobotMessages::MotorFeedback &msg)
-    {
-        motor_feedback = msg;
-    }
-    void OnChassisIK(const RobotMessages::ChassisIKMsg &msg)
-    {
-        chassisIK_target = msg;
-    }
+#define SUB_MSG(T, var)                     \
+    RobotMessages::T var{};                  \
+    void On##T(const RobotMessages::T &m) { var = m; }
+
+    SUB_MSG(HighTargetData, target_data)
+#undef SUB_MSG
 
     void InitMessageSubscribe()
     {
-        RobotMessages::SubscribeChassisTarget(OnChassisTarget);
-        RobotMessages::SubscribeMotorFeedback(OnMotorFeeedback);
-        RobotMessages::SubscribeChassisIKMsg(OnChassisIK);
+        RobotMessages::SubscribeHighTargetData(OnHighTargetData);
     }
 }
 
@@ -46,16 +32,23 @@ void vofa_send(float x1, float x2, float x3, float x4, float x5, float x6)
     send_str2[sizeof(data) + 2] = 0x80;
     send_str2[sizeof(data) + 3] = 0x7F;
 
-    DRV::UART::UartManager::Instance().Send(
-        DRV::UART::UartId::Debug,
-        send_str2,
-        sizeof(send_str2)
-    );
+    // DRV::UART::UartManager::Instance().Send(
+    //     DRV::UART::UartId::Debug,
+    //     send_str2,
+    //     sizeof(send_str2)
+    // );
 }
 
-void Debug_OnUartRx(DRV::UART::UartId id, const DRV::UART::UartData &data)
+void Laser_OnUartRx(DRV::UART::UartId id, const DRV::UART::UartData &data)
 {
-
+    auto &laser = RobotRuntime::Laser();
+    laser.OnUartRx(data.buffer, data.size);
+    if (laser.IsValid())
+    {
+        RobotMessages::LaserData msg{};
+        msg.distance_mm = static_cast<int16_t>(laser.GetDistance());
+        PublishLaserData(msg);
+    }
 }
 
 extern "C" void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
@@ -70,12 +63,6 @@ extern "C" void CommTask(void const *argument)
 
     for (;;)
     {
-        vofa_send(chassisIK_target.motors[0].target, 
-                  motor_feedback.motors[0].angle_deg, // 右后
-                  motor_feedback.motors[1].angle_deg, 
-                  motor_feedback.motors[2].angle_deg, // 右前
-                  motor_feedback.motors[3].angle_deg, 
-                  0.0f);
-        osDelay(1);
+        osDelay(33);
     }
 }

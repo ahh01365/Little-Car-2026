@@ -9,106 +9,55 @@
 
 namespace RobotMessages
 {
-    struct RemoteData
+    struct HighTargetData
     {
-        float target_forward = {};
-        float target_rotation = {};
+        int16_t target_distance_mm = {};
     };
 
-    using RemoteDataBus = MID::MessageBus::MessageBus<RemoteData>;
+    using HighTargetDataBus = MID::MessageBus::MessageBus<HighTargetData>;
 
-    inline void PublishRemoteData(const RemoteData &msg)
+    inline void PublishHighTargetData(const HighTargetData &msg)
     {
-        RemoteDataBus::Instance().Publish(msg);
+        HighTargetDataBus::Instance().Publish(msg);
     }
 
-    inline bool SubscribeRemoteData(RemoteDataBus::Subscriber subscriber)
+    inline bool SubscribeHighTargetData(HighTargetDataBus::Subscriber subscriber)
     {
-        return RemoteDataBus::Instance().Subscribe(subscriber);
+        return HighTargetDataBus::Instance().Subscribe(subscriber);
     }
 
-    struct MotorFeedback
+    struct MotorOutData
     {
-        struct MotorsItem
-        {
-            float speed_rads = {};
-            float speed_rpm = {};
-            float angle_rad = {};
-            float angle_deg = {};
-        };
-        MotorsItem motors[4] = {};
+        int16_t high_out = {};
     };
 
-    using MotorFeedbackBus = MID::MessageBus::MessageBus<MotorFeedback>;
+    using MotorOutDataBus = MID::MessageBus::MessageBus<MotorOutData>;
 
-    inline void PublishMotorFeedback(const MotorFeedback &msg)
+    inline void PublishMotorOutData(const MotorOutData &msg)
     {
-        MotorFeedbackBus::Instance().Publish(msg);
+        MotorOutDataBus::Instance().Publish(msg);
     }
 
-    inline bool SubscribeMotorFeedback(MotorFeedbackBus::Subscriber subscriber)
+    inline bool SubscribeMotorOutData(MotorOutDataBus::Subscriber subscriber)
     {
-        return MotorFeedbackBus::Instance().Subscribe(subscriber);
+        return MotorOutDataBus::Instance().Subscribe(subscriber);
     }
 
-    struct ChassisTarget
+    struct LaserData
     {
-        float target_forward = {};
-        float target_rotation = {};
+        int16_t distance_mm = {};
     };
 
-    using ChassisTargetBus = MID::MessageBus::MessageBus<ChassisTarget>;
+    using LaserDataBus = MID::MessageBus::MessageBus<LaserData>;
 
-    inline void PublishChassisTarget(const ChassisTarget &msg)
+    inline void PublishLaserData(const LaserData &msg)
     {
-        ChassisTargetBus::Instance().Publish(msg);
+        LaserDataBus::Instance().Publish(msg);
     }
 
-    inline bool SubscribeChassisTarget(ChassisTargetBus::Subscriber subscriber)
+    inline bool SubscribeLaserData(LaserDataBus::Subscriber subscriber)
     {
-        return ChassisTargetBus::Instance().Subscribe(subscriber);
-    }
-
-    struct ChassisOutput
-    {
-        struct MotorsItem
-        {
-            float out = {};
-        };
-        MotorsItem motors[4] = {};
-    };
-
-    using ChassisOutputBus = MID::MessageBus::MessageBus<ChassisOutput>;
-
-    inline void PublishChassisOutput(const ChassisOutput &msg)
-    {
-        ChassisOutputBus::Instance().Publish(msg);
-    }
-
-    inline bool SubscribeChassisOutput(ChassisOutputBus::Subscriber subscriber)
-    {
-        return ChassisOutputBus::Instance().Subscribe(subscriber);
-    }
-
-    struct ChassisIKMsg
-    {
-        struct MotorsItem
-        {
-            float target = {};
-        };
-        MotorsItem motors[4] = {};
-    };
-
-    using ChassisIKMsgBus = MID::MessageBus::MessageBus<ChassisIKMsg>;
-
-    inline void PublishChassisIKMsg(const ChassisIKMsg &msg)
-    {
-        ChassisIKMsgBus::Instance().Publish(msg);
-    }
-
-    inline bool SubscribeChassisIKMsg(ChassisIKMsgBus::Subscriber subscriber)
-    {
-        return ChassisIKMsgBus::Instance().Subscribe(subscriber);
+        return LaserDataBus::Instance().Subscribe(subscriber);
     }
 
 }

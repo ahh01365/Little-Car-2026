@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"from PIL import Image; img = Image.open\\(r'D:\\\\UserWHC\\\\RCIA\\\\Little-Car-2026\\\\Little-Car-2026\\\\whcheng\\\\微信图片_20260514210024_91_111.png'\\); print\\(img.size, img.mode\\)\")",
+      "Bash(python -c \"from PIL import Image; img = Image.open\\(r'D:\\\\UserWHC\\\\RCIA\\\\Little-Car-2026\\\\Little-Car-2026\\\\whcheng\\\\微信图片_20260514210024_91_111.png'\\); print\\(img.size, img.mode\\)\")",
+      "PowerShell(if \\(Test-Path \"D:\\\\UserWHC\\\\RCIA\\\\Little-Car-2026\\\\Little-Car-2026\\\\whcheng\\\\微信图片_20260514210024_91_111.png\"\\) { Write-Host \"EXISTS\"; \\(Get-Item \"D:\\\\UserWHC\\\\RCIA\\\\Little-Car-2026\\\\Little-Car-2026\\\\whcheng\\\\微信图片_20260514210024_91_111.png\"\\).Length } else { Write-Host \"NOT FOUND\" })"
+    ]
+  }
+}
