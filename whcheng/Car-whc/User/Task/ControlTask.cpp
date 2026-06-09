@@ -1,13 +1,15 @@
 #include "ControlTask.hpp"
+#include "pid.hpp"
 #include "robot_messages.hpp"
 #include "robot_runtime.hpp"
 #include "APP/Fsm/ChassisFSM.hpp"
-
+#include <algorithm>
 #include <cmath>
+
+#define TOTLE_HIGH 500.0f - 23.0f - 40.0f //0.5m
 
 using namespace RobotRuntime;
 using namespace RobotMessages;
-using State = APP::Fsm::ChassisFSM::State;
 
 namespace
 {
@@ -15,38 +17,85 @@ namespace
     RobotMessages::T var{};                  \
     void On##T(const RobotMessages::T &m) { var = m; }
 
-    SUB_MSG(HighTargetData, high_target)
     SUB_MSG(LaserData, laser_data)
 #undef SUB_MSG
 
     RobotMessages::MotorOutData motor_output{};
+    RobotMessages::HighFeedbackData feedback_data{};
+    RobotMessages::HighTargetData high_target{};
+
+    // 按键边沿检测（active_low: 按下=低, 松开=高）
+    bool btn_prev[3] = {false, false, false};
 
     void InitMessageSubscribe()
     {
-        RobotMessages::SubscribeHighTargetData(OnHighTargetData);
         RobotMessages::SubscribeLaserData(OnLaserData);
     }
 }
 
+void SetFeedback()
+{
+    float filtered_distance = HighDistanceTdTdFilter().Filter(laser_data.distance_mm);
+    feedback_data.feedback_distance_mm = TOTLE_HIGH - filtered_distance;
+    feedback_data.feedback_velocity_mmps = HighDistanceTdTdFilter().GetDifferentialValue();
+    PublishHighFeedbackData(feedback_data);
+}
 
 void SetTarget()
 {
+    auto &btns = Buttons();
 
+    bool btn_now[3] = 
+    {
+        btns[0].IsPressed(),
+        btns[1].IsPressed(),
+        btns[2].IsPressed(),
+    };
+
+    // Key1: 下降沿（刚按下）→ 目标 -50
+    if (btn_now[0] && !btn_prev[0])
+        high_target.target_distance_mm -= 50;
+
+    // Key2: 下降沿 → 目标归零
+    if (btn_now[1] && !btn_prev[1])
+        high_target.target_distance_mm = 0;
+
+    // Key3: 下降沿 → 目标 +50
+    if (btn_now[2] && !btn_prev[2])
+        high_target.target_distance_mm += 50;
+
+    high_target.target_distance_mm = std::clamp(high_target.target_distance_mm, int16_t{0}, int16_t{400});
+
+    btn_prev[0] = btn_now[0];
+    btn_prev[1] = btn_now[1];
+    btn_prev[2] = btn_now[2];
+
+    PublishHighTargetData(high_target);
 }
 
 void Control()
 {
+    auto &dist_pid  = HighDistancePidPid();
+    auto &vel_pid   = HighVelocityPidPid();
+    auto &gravity = GravityForwardFeedforward(); 
 
-    
+    dist_pid.Update(high_target.target_distance_mm, feedback_data.feedback_distance_mm);
+    vel_pid.Update(dist_pid.GetOutput(), feedback_data.feedback_velocity_mmps);
+
+    float pid_output = vel_pid.GetOutput();
+    float gravity_output = gravity.Update(0.0f);
+
+    motor_output.high_out = std::clamp(pid_output + gravity_output, 0.0f, 1000.0f);
     PublishMotorOutData(motor_output);
 }
 
 extern "C" void ControTask(void const *argument)
 {
     InitMessageSubscribe();
-    
+
     for (;;)
     {
+        SetFeedback();
         SetTarget();
         Control();
         osDelay(1);

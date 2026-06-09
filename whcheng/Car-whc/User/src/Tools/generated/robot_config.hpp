@@ -121,7 +121,7 @@ namespace RobotConfig
 
     static constexpr UartConfig kUarts[] =
     {
-        {"laser", "Laser", "huart1", 115200u, "dma", "idle_dma", 20u, "Laser_OnUartRx"},
+        {"laser", "Laser", "huart1", 115200u, "dma", "idle_dma", 11u, "Laser_OnUartRx"},
     };
 
     static constexpr ButtonConfig kButtons[] =

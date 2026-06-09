@@ -5,6 +5,8 @@
 #include "robot_runtime.hpp"
 #include <string.h>
 
+int whatch_laser = 0;
+
 namespace
 {
     uint8_t send_str2[6 * sizeof(float) + 4] = {};
@@ -47,6 +49,7 @@ void Laser_OnUartRx(DRV::UART::UartId id, const DRV::UART::UartData &data)
     {
         RobotMessages::LaserData msg{};
         msg.distance_mm = static_cast<int16_t>(laser.GetDistance());
+        whatch_laser = msg.distance_mm;
         PublishLaserData(msg);
     }
 }

@@ -26,6 +26,24 @@ namespace RobotMessages
         return HighTargetDataBus::Instance().Subscribe(subscriber);
     }
 
+    struct HighFeedbackData
+    {
+        int16_t feedback_distance_mm = {};
+        int16_t feedback_velocity_mmps = {};
+    };
+
+    using HighFeedbackDataBus = MID::MessageBus::MessageBus<HighFeedbackData>;
+
+    inline void PublishHighFeedbackData(const HighFeedbackData &msg)
+    {
+        HighFeedbackDataBus::Instance().Publish(msg);
+    }
+
+    inline bool SubscribeHighFeedbackData(HighFeedbackDataBus::Subscriber subscriber)
+    {
+        return HighFeedbackDataBus::Instance().Subscribe(subscriber);
+    }
+
     struct MotorOutData
     {
         int16_t high_out = {};

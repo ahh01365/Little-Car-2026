@@ -1234,6 +1234,7 @@ def generate_messages_header(config: dict, source_path: Path) -> str:
 def generate_runtime_header(config: dict, source_path: Path) -> str:
     pid_map = config["control"]["pid"]
     filters = get_optional_map(config["control"], "filters", "control")
+    feedforwards = get_optional_map(config["control"], "feedforwards", "control")
     chassis_ik = config["control"].get("chassis_ik", {})
     motors = config["hardware"].get("motors", {})
     encoders = config["hardware"].get("encoders", {})
@@ -1493,6 +1494,35 @@ def generate_runtime_header(config: dict, source_path: Path) -> str:
             lines.append("        return filter;")
             lines.append("    }")
             lines.append("")
+
+    for name, feedforward in feedforwards.items():
+        ident = to_identifier(name)
+        ff_type = feedforward["type"]
+        if ff_type == "acceleration":
+            lines.append(f"    inline ALG::Feedforward::AccelerationFeedforward &{ident}Feedforward()")
+            lines.append("    {")
+            lines.append(f"        static ALG::Feedforward::AccelerationFeedforward ff(RobotConfig::kFeedforward{ident});")
+        elif ff_type == "velocity":
+            lines.append(f"    inline ALG::Feedforward::VelocityFeedforward &{ident}Feedforward()")
+            lines.append("    {")
+            lines.append(f"        static ALG::Feedforward::VelocityFeedforward ff(RobotConfig::kFeedforward{ident});")
+        elif ff_type == "gravity":
+            lines.append(f"    inline ALG::Feedforward::GravityFeedforward &{ident}Feedforward()")
+            lines.append("    {")
+            lines.append(f"        static ALG::Feedforward::GravityFeedforward ff(RobotConfig::kFeedforward{ident});")
+        elif ff_type == "friction":
+            lines.append(f"    inline ALG::Feedforward::FrictionFeedforward &{ident}Feedforward()")
+            lines.append("    {")
+            lines.append(f"        static ALG::Feedforward::FrictionFeedforward ff(RobotConfig::kFeedforward{ident});")
+        elif ff_type == "gimbal_full_compensation":
+            lines.append(f"    inline ALG::Feedforward::GimbalFullCompensation &{ident}Feedforward()")
+            lines.append("    {")
+            lines.append(f"        static ALG::Feedforward::GimbalFullCompensation ff(RobotConfig::kFeedforward{ident});")
+        lines.append("        return ff;")
+        lines.append("    }")
+        lines.append("")
+    if feedforwards:
+        pass  # keep the blank line only if there were feedforwards
 
     if chassis_ik.get("type") == "differential_drive":
         lines.append("    inline ALG::ChassisIK::Diff_IK &ChassisIK()")

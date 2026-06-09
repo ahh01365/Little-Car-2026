@@ -17,7 +17,7 @@ communication:
       baudrate: 115200
       tx_mode: dma
       rx_mode: idle_dma
-      rx_buffer_size: 20
+      rx_buffer_size: 11
       rx_callback: Laser_OnUartRx
 
 
@@ -28,6 +28,14 @@ messages:
       target_distance_mm: int16_t
     subscribers:
       - Target_Data
+  
+  High_FeedbackData:
+    publisher: FeedbackDetector
+    fields:
+      feedback_distance_mm: int16_t
+      feedback_velocity_mmps: int16_t
+    subscribers:
+      - Feedback_Data
 
   Motor_OutData:
     publisher: MotorController

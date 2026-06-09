@@ -23,8 +23,8 @@ namespace BSP::Laser
      *
      * 通过UART接收ASCII格式的距离数据，默认30Hz持续输出。
      *
-     * 数据帧格式：<空格><距离ASCII>, <置信度ASCII><\n>
-     * 示例：20 33 32 37 2C 20 36 31 0A → " 327, 61\n" → 距离327mm，置信度61
+     * 实际数据帧格式：<距离ASCII>, <置信度ASCII><\n>
+     * 示例：33 32 37 2C 20 36 31 0A -> "327, 61\n" -> 距离327mm，置信度61
      *
      * 使用方式：
      * - 构造后调用 UartManager 注册 OnUartRx 回调
@@ -97,39 +97,51 @@ namespace BSP::Laser
         /**
          * @brief 解析激光模组ASCII数据帧。
          *
-         * 帧格式：<空格(0x20)><距离ASCII><逗号+空格(0x2C 0x20)><置信度ASCII><换行(0x0A)>
+         * 实际帧格式：<距离ASCII>,<空格><置信度ASCII><\n>
+         *
+         * 激光30Hz持续发送，DMA启动时机随机。
+         * 以 \n 为帧边界，向前定位完整帧后再解析，
+         * 天然处理了半帧/粘帧问题。
          *
          * @param data 原始数据缓冲区。
          * @param size 数据长度。
          */
         void ParseFrame(const uint8_t *data, uint16_t size)
         {
-            if (data == nullptr || size < 5)
+            if (data == nullptr || size < 6)
             {
                 data_.valid = false;
                 return;
             }
 
-            const uint8_t *p = data;
             const uint8_t *end = data + size;
 
-            // 1. 查找帧头：空格 (0x20)
-            while (p < end && *p != 0x20)
+            // 1. 从末尾向前查找帧尾 \n (0x0A)
+            const uint8_t *tail = end - 1;
+            while (tail >= data && *tail != 0x0A)
             {
-                ++p;
+                --tail;
             }
-
-            if (p >= end)
+            if (tail < data)
             {
                 data_.valid = false;
                 return;
             }
-            ++p; // 跳过帧头空格
 
-            // 2. 解析距离值（ASCII数字，1~5位）
+            // 2. 从 \n 再向前跳过前一帧（或半帧），定位本帧起始字节
+            const uint8_t *head = tail - 1;
+            while (head >= data && *head != 0x0A)
+            {
+                --head;
+            }
+            ++head; // head 指向本帧第一个字节
+
+            const uint8_t *p = head;
+
+            // 3. 解析距离值（ASCII数字，1~5位）
             uint16_t distance = 0;
             uint8_t dist_digits = 0;
-            while (p < end && *p >= '0' && *p <= '9')
+            while (p < tail && *p >= '0' && *p <= '9')
             {
                 distance = distance * 10 + static_cast<uint16_t>(*p - '0');
                 ++dist_digits;
@@ -142,18 +154,18 @@ namespace BSP::Laser
                 return;
             }
 
-            // 3. 验证分隔符：逗号 + 空格 (0x2C 0x20)
-            if (p + 1 >= end || *p != 0x2C || *(p + 1) != 0x20)
+            // 4. 验证分隔符 ", " (0x2C 0x20)
+            if (p + 1 >= tail || *p != 0x2C || *(p + 1) != 0x20)
             {
                 data_.valid = false;
                 return;
             }
-            p += 2; // 跳过分隔符 ", "
+            p += 2;
 
-            // 4. 解析置信度（ASCII数字，1~2位）
+            // 5. 解析置信度（ASCII数字，1~2位）
             uint8_t confidence = 0;
             uint8_t conf_digits = 0;
-            while (p < end && *p >= '0' && *p <= '9')
+            while (p < tail && *p >= '0' && *p <= '9')
             {
                 confidence = confidence * 10 + static_cast<uint8_t>(*p - '0');
                 ++conf_digits;
@@ -166,21 +178,21 @@ namespace BSP::Laser
                 return;
             }
 
-            // 5. 验证帧尾：换行符 (0x0A)
-            if (p >= end || *p != 0x0A)
+            // 6. 确认解析指针刚好停在 \n 之前（即 p == tail）
+            if (p != tail)
             {
                 data_.valid = false;
                 return;
             }
 
-            // 6. 范围校验
+            // 7. 范围校验
             if (distance < 20 || distance > 4500 || confidence > 62)
             {
                 data_.valid = false;
                 return;
             }
 
-            // 7. 更新有效数据
+            // 8. 更新有效数据
             data_.distance_mm = distance;
             data_.confidence = confidence;
             data_.valid = true;

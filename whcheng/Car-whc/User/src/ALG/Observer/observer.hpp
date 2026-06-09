@@ -106,6 +106,13 @@ namespace ALG::Observer
         float x_dot_ = 0.0f;
         float input_ = 0.0f;
     };
+
+    class UDE_H
+    {
+        
+    };
 }
+
+
 
 #endif // !OBSERVER_HPP

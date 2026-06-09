@@ -27,13 +27,13 @@ namespace
 
 void motor_control_logic()
 {
-
-
-
+    auto &fan = BlowerFan();
+    fan.SetDuty(static_cast<uint16_t>(motor_output.high_out));
 }
 
 extern "C" void HardwareTask(void const *argument)
 {
+    BlowerFan().Start();
     InitMessageSubscribe();
 
     for (;;) 

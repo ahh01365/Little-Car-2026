@@ -74,6 +74,12 @@ namespace RobotRuntime
         return filter;
     }
 
+    inline ALG::Feedforward::GravityFeedforward &GravityForwardFeedforward()
+    {
+        static ALG::Feedforward::GravityFeedforward ff(RobotConfig::kFeedforwardGravityForward);
+        return ff;
+    }
+
     inline bool UartTx(DRV::UART::UartId id, const uint8_t *data, uint16_t len)
     {
         switch (id)
@@ -96,9 +102,9 @@ namespace RobotRuntime
         }
     }
 
-    inline uint8_t (&LaserRxBuffer())[20]
+    inline uint8_t (&LaserRxBuffer())[11]
     {
-        static uint8_t buffer[20] = {};
+        static uint8_t buffer[11] = {};
         return buffer;
     }
 
