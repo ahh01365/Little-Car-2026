@@ -12,6 +12,7 @@
 import sys
 import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from numpy.polynomial import Polynomial
 
@@ -21,18 +22,20 @@ plt.rcParams['axes.unicode_minus'] = False
 
 
 def read_data(filepath: str):
-    """读取数据文件，返回 (actual, measured) 两个 numpy 数组。"""
-    try:
-        data = np.loadtxt(filepath)
-    except ValueError:
-        # 尝试逗号分隔
-        data = np.loadtxt(filepath, delimiter=',')
+    """读取数据文件，返回 (actual, measured) 两个 numpy 数组。支持 csv/xlsx。"""
+    ext = os.path.splitext(filepath)[1].lower()
 
-    if data.ndim != 2 or data.shape[1] < 2:
-        raise ValueError(f"数据格式错误：需要两列数据，实际读取到 {data.shape[1] if data.ndim==2 else 1} 列。")
+    if ext in ('.xlsx', '.xls'):
+        df = pd.read_excel(filepath)
+    else:
+        df = pd.read_csv(filepath)
 
-    actual   = data[:, 0]
-    measured = data[:, 1]
+    # 取前两列
+    if df.shape[1] < 2:
+        raise ValueError(f"数据格式错误：需要两列，实际读取到 {df.shape[1]} 列。")
+
+    actual   = df.iloc[:, 0].to_numpy(dtype=float)
+    measured = df.iloc[:, 1].to_numpy(dtype=float)
     return actual, measured
 
 

@@ -56,21 +56,21 @@ control:
   filters:
     high_distance_td:
       type: td
-      r: 300.0
+      r: 60.0
       h: 0.001
       initial_v1: 0.0
       initial_v2: 0.0
 
     high_velocity_td:
       type: td
-      r: 300.0
+      r: 50.0
       h: 0.001
       initial_v1: 0.0
       initial_v2: 0.0
 
     ude_filter_td:
       type: td
-      r: 300.0
+      r: 100.0
       h: 0.001
       initial_v1: 0.0
       initial_v2: 0.0
@@ -89,7 +89,7 @@ control:
       kp: 0.0
       ki: 0.0
       kd: 0.0
-      output_limit: 1000
+      output_limit: 500
       integral_limit: 500
       integral_separation_threshold: 100.0
       R: 50.0
@@ -100,7 +100,7 @@ control:
       kp: 0.0
       ki: 0.0
       kd: 0.0
-      output_limit: 1000
+      output_limit: 300
       integral_limit: 500
       integral_separation_threshold: 100.0
       R: 50.0
@@ -110,12 +110,6 @@ control:
 hardware:
   motors:
 
-  fans:
-    blower:
-      pwm: { timer: htim1, channel: TIM_CHANNEL_1, gpio: PE9 }
-      startup_duty: 200
-      min_duty: 50
-  
   buttons:
     key1:
       pin: PG3
