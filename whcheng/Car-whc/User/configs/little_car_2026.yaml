@@ -57,7 +57,21 @@ control:
     high_distance_td:
       type: td
       r: 300.0
-      h: 0.0333
+      h: 0.001
+      initial_v1: 0.0
+      initial_v2: 0.0
+
+    high_velocity_td:
+      type: td
+      r: 300.0
+      h: 0.001
+      initial_v1: 0.0
+      initial_v2: 0.0
+
+    ude_filter_td:
+      type: td
+      r: 300.0
+      h: 0.001
       initial_v1: 0.0
       initial_v2: 0.0
 
