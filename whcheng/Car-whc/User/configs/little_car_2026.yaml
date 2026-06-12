@@ -86,13 +86,13 @@ control:
   pid:
     high_distance_pid:
       type: pid
-      kp: 0.0
-      ki: 0.0
-      kd: 0.0
-      output_limit: 500
-      integral_limit: 500
-      integral_separation_threshold: 100.0
-      R: 50.0
+      kp: 0.2
+      ki: 0.3
+      kd: 0.06
+      output_limit: 30
+      integral_limit: 30
+      integral_separation_threshold: 180.0
+      R: 60.0
       T: 0.001
 
     high_velocity_pid:
@@ -100,7 +100,7 @@ control:
       kp: 0.0
       ki: 0.0
       kd: 0.0
-      output_limit: 300
+      output_limit: 500
       integral_limit: 500
       integral_separation_threshold: 100.0
       R: 50.0

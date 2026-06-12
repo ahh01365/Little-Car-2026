@@ -98,7 +98,7 @@ void MX_TIM1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM1_Init 2 */
-  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1100);
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1100); // ESC解锁脉宽
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
   /* USER CODE END TIM1_Init 2 */
   HAL_TIM_MspPostInit(&htim1);

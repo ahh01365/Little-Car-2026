@@ -18,12 +18,12 @@ namespace RobotConfig
     static constexpr const char *kRobotTarget = "default_car";
     static constexpr const char *kChassisType = "differential_drive";
 
-    static constexpr ALG::PID::PidConfig kPidHighDistancePid = {0.0f, 0.0f, 0.0f, 1000.0f, 500.0f, 100.0f, 50.0f, 0.001f};
-    static constexpr ALG::PID::PidConfig kPidHighVelocityPid = {0.0f, 0.0f, 0.0f, 1000.0f, 500.0f, 100.0f, 50.0f, 0.001f};
+    static constexpr ALG::PID::PidConfig kPidHighDistancePid = {0.2f, 0.3f, 0.06f, 30.0f, 30.0f, 200.0f, 60.0f, 0.001f};
+    static constexpr ALG::PID::PidConfig kPidHighVelocityPid = {0.0f, 0.0f, 0.0f, 500.0f, 500.0f, 100.0f, 50.0f, 0.001f};
 
     static constexpr ALG::Filter::TDFilterConfig kFilterHighDistanceTd = {60.0f, 0.001f, 0.0f, 0.0f};
-    static constexpr ALG::Filter::TDFilterConfig kFilterHighVelocityTd = {300.0f, 0.001f, 0.0f, 0.0f};
-    static constexpr ALG::Filter::TDFilterConfig kFilterUdeFilterTd = {300.0f, 0.001f, 0.0f, 0.0f};
+    static constexpr ALG::Filter::TDFilterConfig kFilterHighVelocityTd = {50.0f, 0.001f, 0.0f, 0.0f};
+    static constexpr ALG::Filter::TDFilterConfig kFilterUdeFilterTd = {100.0f, 0.001f, 0.0f, 0.0f};
 
     static constexpr ALG::Feedforward::GravityFeedforwardConfig kFeedforwardGravityForward = {0.0f, 0.0f};
 

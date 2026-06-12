@@ -31,6 +31,7 @@ namespace ALG::PID
         }
 
         const float error = target - feedback;
+        error_ = error;
 
         /**  积分分离  */
         if (CanIntegrate(error))
@@ -65,6 +66,16 @@ namespace ALG::PID
     float PID::GetOutput() const
     {
         return output_;
+    }
+
+    float PID::GetIntegral() const
+    {
+        return integral_;
+    }
+
+    float PID::GetError() const
+    {
+        return error_;
     }
 
     void PID::InitTd(float input)

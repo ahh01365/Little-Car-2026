@@ -71,6 +71,12 @@ namespace ALG::PID
          */
         float GetOutput() const;
 
+        float GetIntegral() const;
+
+        float GetError() const;
+
+        float GetTdDerivative() const;
+
     private:
         /**
          * @brief 初始化TD微分跟踪器状态。
@@ -85,13 +91,6 @@ namespace ALG::PID
          * @param input 输入信号。
          */
         void UpdateTd(float input);
-
-        /**
-         * @brief 获取TD微分估计量。
-         *
-         * @return float 微分估计量。
-         */
-        float GetTdDerivative() const;
 
         /**
          * @brief 判断本次误差是否允许积分。
@@ -135,6 +134,8 @@ namespace ALG::PID
         float td_derivative_ = 0.0f;
         /** 误差积分值。 */
         float integral_ = 0.0f;
+        /** 最近一次误差值。 */
+        float error_ = 0.0f;
         /** 最近一次PID输出。 */
         float output_ = 0.0f;
         /** TD是否已经根据当前反馈值完成初始化。 */

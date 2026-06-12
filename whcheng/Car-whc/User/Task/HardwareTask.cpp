@@ -27,15 +27,20 @@ int a = 0;
 
 void motor_control_logic()
 {
-    a = std::clamp(a, 0, 300);
-    // 目标脉宽
-    uint32_t target = 1100u + (static_cast<uint32_t>(a) * 840u) / 1000u;//1100u + (static_cast<uint32_t>(motor_output.high_out) * 840u) / 1000u;
+    // // === 鼓风机测试模式 ===
+    // uint32_t compare = (39u * static_cast<uint32_t>(motor_output.high_out)) / 1000u;
+    // a = compare;
+    // __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, compare);
 
-    // 当前脉宽（静态变量，缓慢爬升）
+    // === 涵道ESC模式 ===
+    // 0~1000 → ESC 脉宽 1100~1940μs，带软启动爬升
+    uint32_t target = 1100u + (static_cast<uint32_t>(motor_output.high_out) * 840u) / 1000u;
+
     static uint32_t current = 1100u;
     if (current < target)  current += 1;   // 每 1ms 爬 1μs
-    if (current > target)  current = target; // 降低则立刻响应
+    if (current > target)  current = target;
 
+    
     __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, current);
 }
 
