@@ -24,12 +24,13 @@ inline float CalibrateLaser(float raw_mm)
 
 // ==== Ozone 实时调参 ====
 ALG::PID::PidConfig g_dist_pid = RobotConfig::kPidHighDistancePid;
-float g_ude_gain    = 0.0f;     // UDE 输出 → 占空比 转换系数
+float g_ude_gain    = 0.0f;     // UDE 输出 �? 占空�? 转换系数
 float g_launch_duty = 200.0f;   // 发射占空比（吹到顶）
 float g_hover_bias  = 190.0f;   // 悬停偏置（PID 围绕此值修正）
 int   g_state       = 0;        // 0=空闲, 1=发射, 2=PID控制
-bool  g_first_key3  = true;     // Key2 发射后首次 Key3 设 target=100
+bool  g_first_key3  = true;     // Key2 发射后首�? Key3 �? target=100
 
+int er;
 // Ozone 观测 PID 分量
 float g_pid_pout = 0.0f;
 float g_pid_iout = 0.0f;
@@ -52,7 +53,7 @@ namespace
     RobotMessages::HighFeedbackData feedback_data{};
     RobotMessages::HighTargetData high_target{};
 
-    // 按键边沿检测（active_low: 按下=低, 松开=高）
+    // 按键边沿检测（active_low: 按下=�?, 松开=高）
     bool btn_prev[3] = {false, false, false};
     // 上次反馈的速度，用于计算加速度
     float prev_feedback_velocity_mmps = 0.0f;
@@ -95,7 +96,7 @@ void SetTarget()
         g_first_key3 = true;
     }
 
-    // Key3: 首次=100，之后+50，同时激活 PID
+    // Key3: 首次=100，之�?+50，同时激�? PID
     if (btn_now[2] && !btn_prev[2])
     {
         if (g_first_key3)
